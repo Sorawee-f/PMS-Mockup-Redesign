@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR Copilot - Director Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap');
+        html { font-size: 16px; }
+        body { font-family: 'Prompt', sans-serif; background-color: #f3f4f6; font-size: 1rem; }
+        .row-transition { transition: background-color 0.3s ease; }
+        .grade-adjusted { background-color: #f0fdf4 !important; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <nav class="bg-teal-800 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <div class="flex items-center">
+                    <i class="fa-solid fa-building-user text-3xl mr-3 text-teal-300"></i>
+                    <span class="font-bold text-2xl tracking-wider uppercase">Director <span class="text-teal-400 font-light">Workspace</span></span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span id="scopeDisplay" class="text-sm bg-teal-900 px-4 py-2 rounded-xl border border-teal-700 font-bold">Scope: Loading...</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
+            <div>
+                <h1 class="text-3xl font-black text-gray-800 tracking-tight">สรุปผลการประเมินประจำปี (Bell Curve)</h1>
+                <p class="text-base text-gray-500 mt-1">ภาพรวมการกระจายเกรดและการพิจารณาโควตาพนักงานในแผนก</p>
+            </div>
+            <div class="bg-white px-6 py-3 rounded-2xl shadow-sm border border-gray-200 flex items-center">
+                <i class="fa-solid fa-filter text-teal-600 mr-3 text-lg"></i>
+                <select id="deptFilter" onchange="applyFilter()" class="text-base border-none bg-transparent text-gray-600 font-bold cursor-pointer outline-none">
+                    <option value="All">ดูทั้งหมดทุกแผนก</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- 🌟 แสดงสัดส่วนประเมินแล้วแบบ X / Y คน -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
+            <div class="bg-white rounded-2xl shadow-sm p-8 border-l-4 border-slate-400">
+                <p class="text-sm text-gray-500 mb-2 font-black uppercase tracking-widest">พนักงานที่ประเมินแล้ว</p>
+                <p class="text-5xl font-black text-gray-800"><span id="evalCountSpan">0</span><span class="text-xl font-bold text-gray-400"> / <span id="totalScopeSpan">0</span> คน</span></p>
+            </div>
+            
+            <div id="cardAPlus" class="bg-white rounded-2xl shadow-sm p-8 border-l-4 border-green-500">
+                <p class="text-sm text-gray-500 mb-2 font-black uppercase tracking-widest">โควตาเกรด A+ (ไม่เกิน 10%)</p>
+                <p class="text-4xl font-black text-gray-800"><span id="countAPlus">0</span> <span class="text-lg font-bold text-gray-400">คน</span></p>
+                <p id="alertAPlus" class="text-base mt-2 font-bold text-green-600">คิดเป็น 0.00%</p>
+            </div>
+
+            <div id="cardA" class="bg-white rounded-2xl shadow-sm p-8 border-l-4 border-green-500">
+                <p class="text-sm text-gray-500 mb-2 font-black uppercase tracking-widest">โควตาเกรด A (ไม่เกิน 20%)</p>
+                <p class="text-4xl font-black text-gray-800"><span id="countA">0</span> <span class="text-lg font-bold text-gray-400">คน</span></p>
+                <p id="alertA" class="text-base mt-2 font-bold text-green-600">คิดเป็น 0.00%</p>
+            </div>
+        </div>
+
+        <!-- 🌟 คืนชีพ Flashcard ครบทุกเกรด 🌟 -->
+        <div class="bg-white rounded-2xl shadow-sm p-8 border border-gray-200 mb-10">
+            <h3 class="text-base font-black text-gray-700 mb-6 uppercase tracking-widest"><i class="fa-solid fa-chart-pie text-teal-600 mr-3"></i> สัดส่วนเกรดทั้งหมด (Grade Distribution)</h3>
+            <div class="grid grid-cols-2 md:grid-cols-6 gap-6 text-center">
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100"><p class="text-xl font-black text-green-700">A+</p><p class="text-3xl font-black text-gray-800 mt-2" id="distAPlus">0</p><p class="text-sm font-bold text-gray-400" id="pctAPlus">0.00%</p></div>
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100"><p class="text-xl font-black text-green-500">A</p><p class="text-3xl font-black text-gray-800 mt-2" id="distA">0</p><p class="text-sm font-bold text-gray-400" id="pctA">0.00%</p></div>
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100"><p class="text-xl font-black text-blue-600">B+</p><p class="text-3xl font-black text-gray-800 mt-2" id="distBPlus">0</p><p class="text-sm font-bold text-gray-400" id="pctBPlus">0.00%</p></div>
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100"><p class="text-xl font-black text-blue-400">B</p><p class="text-3xl font-black text-gray-800 mt-2" id="distB">0</p><p class="text-sm font-bold text-gray-400" id="pctB">0.00%</p></div>
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100"><p class="text-xl font-black text-orange-500">C</p><p class="text-3xl font-black text-gray-800 mt-2" id="distC">0</p><p class="text-sm font-bold text-gray-400" id="pctC">0.00%</p></div>
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100"><p class="text-xl font-black text-red-500">D</p><p class="text-3xl font-black text-gray-800 mt-2" id="distD">0</p><p class="text-sm font-bold text-gray-400" id="pctD">0.00%</p></div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-200">
+            <div class="px-8 py-6 border-b border-gray-200 bg-teal-50">
+                <h2 class="font-black text-teal-800 text-lg uppercase flex items-center"><i class="fa-solid fa-sliders text-teal-600 mr-3"></i> ตารางปรับเกรด (Grade Adjustment)</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-white text-gray-500 text-xs border-b uppercase tracking-widest font-black">
+                            <th class="p-5">พนักงาน</th>
+                            <th class="p-5 text-center">คะแนนรวม KPIs</th>
+                            <th class="p-5 text-center bg-slate-50">Initial Grade</th>
+                            <th class="p-5 text-center bg-teal-50 border-x border-teal-100 w-48">Adjust Grade</th>
+                            <th class="p-5 w-1/3">เหตุผล (บังคับถ้ามีการปรับเกรด)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="directorTableBody" class="text-base divide-y divide-gray-100">
+                        <tr><td colspan="5" class="p-8 text-center text-gray-500">กำลังโหลดข้อมูลโครงการ...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="mt-10 flex justify-end">
+            <button id="confirmBtn" onclick="confirmAllGrades()" class="bg-teal-600 text-white px-10 py-4 rounded-2xl font-black hover:bg-teal-700 shadow-xl transition-all flex items-center text-lg">
+                <i class="fa-solid fa-lock mr-3"></i> ยืนยันผลการประเมินเบื้องต้น (Confirm All)
+            </button>
+        </div>
+    </main>
+
+    <div id="toast" class="fixed bottom-8 right-8 transform translate-y-20 opacity-0 transition-all duration-300 bg-teal-800 text-white px-8 py-5 rounded-2xl shadow-2xl flex items-center z-50">
+        <i class="fa-solid fa-check-circle mr-4 text-3xl text-teal-300"></i>
+        <div><h4 class="font-black text-lg">บันทึกสำเร็จ</h4><span class="text-sm opacity-80">ข้อมูลเกรดถูกบันทึกลงฐานข้อมูลแล้ว</span></div>
+    </div>
+
+    <script src="./js/api.js"></script>
+    <script>
+        let currentUser = null, originalData = [], employees = [], globalTotalScope = 0;
+
+        window.onload = async () => {
+            currentUser = checkAuth("Director"); 
+            if(currentUser) {
+                document.getElementById('scopeDisplay').innerText = `สิทธิ์เข้าถึง: ${currentUser.deptScope}`;
+                const res = await apiCall("get_director_data", { deptScope: currentUser.deptScope });
+                if(res.status === "success") {
+                    originalData = res.data; employees = [...originalData];
+                    globalTotalScope = res.totalScopeCount || employees.length;
+                    document.getElementById('totalScopeSpan').innerText = globalTotalScope;
+                    populateDeptFilter(); renderTable();
+                }
+            }
+        };
+
+        function populateDeptFilter() {
+            const depts = [...new Set(originalData.map(e => e.dept))];
+            const select = document.getElementById('deptFilter');
+            depts.forEach(d => { select.innerHTML += `<option value="${d}">แผนก ${d}</option>`; });
+        }
+
+        function applyFilter() {
+            const val = document.getElementById('deptFilter').value;
+            employees = val === 'All' ? [...originalData] : originalData.filter(e => e.dept === val);
+            renderTable();
+        }
+
+        function handleGrade(id, val) {
+            const emp = employees.find(e => e.id === id); emp.adjGrade = val;
+            if(emp.initGrade === val) emp.reason = '';
+            renderTable(); 
+        }
+
+        function handleReason(id, val) { employees.find(e => e.id === id).reason = val; }
+
+        function updateQuotas() {
+            document.getElementById('evalCountSpan').innerText = employees.length;
+            const cAPlus = employees.filter(e => e.adjGrade === 'A+').length;
+            const cA = employees.filter(e => e.adjGrade === 'A').length;
+
+            const pctAPlus = globalTotalScope > 0 ? (cAPlus/globalTotalScope)*100 : 0;
+            const pctA = globalTotalScope > 0 ? (cA/globalTotalScope)*100 : 0;
+
+            document.getElementById('countAPlus').innerText = cAPlus;
+            document.getElementById('alertAPlus').innerHTML = `<span class="${pctAPlus > 10 ? 'text-red-600 font-bold' : 'text-green-600'}">คิดเป็น ${pctAPlus.toFixed(2)}%</span>`;
+            document.getElementById('cardAPlus').className = `bg-white rounded-2xl shadow-sm p-8 border-l-4 ${pctAPlus > 10 ? 'border-red-500 bg-red-50' : 'border-green-500'}`;
+            
+            document.getElementById('countA').innerText = cA;
+            document.getElementById('alertA').innerHTML = `<span class="${pctA > 20 ? 'text-red-600 font-bold' : 'text-green-600'}">คิดเป็น ${pctA.toFixed(2)}%</span>`;
+            document.getElementById('cardA').className = `bg-white rounded-2xl shadow-sm p-8 border-l-4 ${pctA > 20 ? 'border-red-500 bg-red-50' : 'border-green-500'}`;
+
+            const gradesList = ['A+', 'A', 'B+', 'B', 'C', 'D'], gradeIds = ['APlus', 'A', 'BPlus', 'B', 'C', 'D'];
+            gradesList.forEach((g, idx) => {
+                let count = employees.filter(e => e.adjGrade === g).length;
+                let pct = globalTotalScope === 0 ? 0 : ((count / globalTotalScope) * 100);
+                document.getElementById('dist' + gradeIds[idx]).innerText = count;
+                document.getElementById('pct' + gradeIds[idx]).innerText = pct.toFixed(2) + '%';
+            });
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('directorTableBody'); tbody.innerHTML = '';
+            if(employees.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500">ไม่พบข้อมูลผู้ถูกประเมิน</td></tr>';
+                updateQuotas(); return;
+            }
+            const grades = ['A+','A','B+','B','C','D'];
+            employees.forEach(emp => {
+                const isAdj = emp.initGrade !== emp.adjGrade;
+                const tr = document.createElement('tr');
+                tr.className = `border-b ${isAdj ? 'grade-adjusted' : 'hover:bg-gray-50'} row-transition`;
+                
+                let sel = `<select onchange="handleGrade('${emp.id}', this.value)" class="w-full border-2 border-teal-100 rounded-xl p-2 bg-white font-black text-center text-lg">`;
+                grades.forEach(g => sel += `<option ${emp.adjGrade===g?'selected':''}>${g}</option>`);
+                sel += `</select>`;
+
+                tr.innerHTML = `<td class="p-6"><p class="text-lg font-black">${emp.name}</p><p class="text-xs text-gray-400">${emp.id} • ${emp.dept}</p></td>
+                    <td class="p-6 text-center"><span class="bg-slate-100 px-4 py-2 rounded-xl font-black text-slate-700">${parseFloat(emp.score).toFixed(2)}</span></td>
+                    <td class="p-6 text-center font-black text-xl text-gray-500 bg-slate-50">${emp.initGrade}</td>
+                    <td class="p-6 bg-teal-50">${sel}</td>
+                    <td class="p-6"><input type="text" onchange="handleReason('${emp.id}', this.value)" value="${emp.reason}" placeholder="${isAdj?'โปรดระบุเหตุผลในการโยกเกรด...':'-'}" class="w-full border-2 p-3 rounded-xl text-sm ${isAdj?'border-red-200 bg-red-50':'bg-white'}" ${isAdj?'required':''}></td>`;
+                tbody.appendChild(tr);
+            });
+            updateQuotas();
+        }
+
+        async function confirmAllGrades() {
+            const missing = employees.find(e => e.initGrade !== e.adjGrade && e.reason.trim() === '');
+            if(missing) return alert(`กรุณาระบุเหตุผลการแก้เกรดของ: ${missing.name}`);
+
+            const btn = document.getElementById('confirmBtn'); btn.innerText = "Saving Grid..."; btn.disabled = true;
+            const payload = employees.map(e => ({ id: e.id, finalGrade: e.adjGrade, reason: e.reason }));
+            const res = await apiCall("save_director_confirm", payload);
+            if(res.status === "success") {
+                const toast = document.getElementById('toast'); toast.classList.remove('translate-y-20', 'opacity-0');
+                setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
+                btn.innerText = "Confirmed & Locked";
+            } else { alert("Error: " + res.message); btn.innerText = "Confirm All"; btn.disabled = false; }
+        }
+    </script>
+</body>
+</html>
