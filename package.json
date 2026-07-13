@@ -1,0 +1,6 @@
+{
+  "name": "pms-mockup-redesign",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Performance Evaluation Prototype - static frontend with Vercel proxy to Google Apps Script"
+}

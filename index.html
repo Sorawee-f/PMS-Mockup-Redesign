@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HR Copilot - PMS Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800;900&display=swap');
+    body { font-family: 'Prompt', sans-serif; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-slate-800">
+  <div class="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_top_left,_#10b981,_transparent_35%),radial-gradient(circle_at_bottom_right,_#0f766e,_transparent_35%)]"></div>
+
+  <main class="relative w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 bg-white rounded-[2.5rem] overflow-hidden shadow-2xl">
+    <section class="bg-emerald-900 text-white p-12 flex flex-col justify-between min-h-[520px]">
+      <div>
+        <div class="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center text-3xl shadow-xl mb-8">
+          <i class="fa-solid fa-chart-pie"></i>
+        </div>
+        <h1 class="text-4xl font-black tracking-tight leading-tight">Performance Evaluation<br><span class="text-emerald-300">Prototype</span></h1>
+        <p class="mt-5 text-emerald-50/80 text-lg leading-relaxed">ระบบประเมินผลงานและปรับสมดุลเกรด สำหรับทดสอบ Flow ผ่าน Vercel + Google Apps Script</p>
+      </div>
+      <div class="text-sm text-emerald-100/70 leading-relaxed border-t border-white/10 pt-6">
+        <p class="font-bold text-emerald-200 mb-2">Prototype Mode</p>
+        <p>เหมาะสำหรับฝากไฟล์บน Git/Vercel เพื่อแก้ต่อได้ง่าย ยังไม่ใช่ระบบ Production สำหรับข้อมูลจริงทั้งองค์กร</p>
+      </div>
+    </section>
+
+    <section class="p-10 lg:p-12">
+      <h2 class="text-3xl font-black text-slate-900 mb-2">เข้าสู่ระบบ</h2>
+      <p class="text-slate-500 font-medium mb-8">ใช้ Email และ PIN จากชีต Users</p>
+
+      <form id="loginForm" class="space-y-5">
+        <div>
+          <label class="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Email</label>
+          <input id="email" type="email" required placeholder="name@thairathgroup.com" class="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none focus:border-emerald-500 font-bold">
+        </div>
+        <div>
+          <label class="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">PIN 6 หลัก</label>
+          <input id="pin" type="password" required inputmode="numeric" maxlength="12" placeholder="••••••" class="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none focus:border-emerald-500 font-bold text-xl tracking-widest">
+        </div>
+        <button id="loginBtn" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-lg hover:bg-emerald-600 transition-all shadow-xl flex items-center justify-center">
+          <i class="fa-solid fa-right-to-bracket mr-3"></i> Login
+        </button>
+      </form>
+
+      <div id="message" class="hidden mt-6 p-4 rounded-2xl text-sm font-bold"></div>
+    </section>
+  </main>
+
+  <script src="./js/api.js"></script>
+  <script>
+    const form = document.getElementById('loginForm');
+    const btn = document.getElementById('loginBtn');
+    const msg = document.getElementById('message');
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      msg.classList.add('hidden');
+      btn.disabled = true;
+      const original = btn.innerHTML;
+      btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin mr-3"></i> Checking...';
+
+      const email = document.getElementById('email').value.trim();
+      const pin = document.getElementById('pin').value.trim();
+      const res = await loginUser(email, pin);
+
+      if (res.status === 'success') {
+        window.location.href = res.user.role === 'Director' ? 'director.html' : 'manager.html';
+      } else {
+        msg.textContent = res.message || 'เข้าสู่ระบบไม่สำเร็จ';
+        msg.className = 'mt-6 p-4 rounded-2xl text-sm font-bold bg-red-50 text-red-600 border border-red-100';
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    });
+  </script>
+</body>
+</html>

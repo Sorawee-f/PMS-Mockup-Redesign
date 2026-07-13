@@ -116,23 +116,34 @@
         let currentUser = null, originalData = [], employees = [], globalTotalScope = 0;
 
         window.onload = async () => {
-            currentUser = checkAuth("Director"); 
-            if(currentUser) {
-                document.getElementById('scopeDisplay').innerText = `สิทธิ์เข้าถึง: ${currentUser.deptScope}`;
-                const res = await apiCall("get_director_data", { deptScope: currentUser.deptScope });
-                if(res.status === "success") {
-                    originalData = res.data; employees = [...originalData];
-                    globalTotalScope = res.totalScopeCount || employees.length;
-                    document.getElementById('totalScopeSpan').innerText = globalTotalScope;
-                    populateDeptFilter(); renderTable();
-                }
+            currentUser = checkAuth("Director");
+            if (!currentUser) return;
+
+            document.getElementById('scopeDisplay').innerText = `สิทธิ์เข้าถึง: ${currentUser.deptScope || '-'}`;
+            const res = await apiCall("get_director_data");
+            if(res.status === "success") {
+                originalData = res.data || [];
+                employees = [...originalData];
+                globalTotalScope = res.totalScopeCount || employees.length;
+                document.getElementById('totalScopeSpan').innerText = globalTotalScope;
+                populateDeptFilter();
+                renderTable();
+            } else {
+                alert('โหลดข้อมูล Director ไม่สำเร็จ: ' + res.message);
             }
         };
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+              .replaceAll('&', '&amp;').replaceAll('<', '&lt;')
+              .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+        }
+
         function populateDeptFilter() {
-            const depts = [...new Set(originalData.map(e => e.dept))];
+            const depts = [...new Set(originalData.map(e => e.dept).filter(Boolean))].sort();
             const select = document.getElementById('deptFilter');
-            depts.forEach(d => { select.innerHTML += `<option value="${d}">แผนก ${d}</option>`; });
+            select.innerHTML = '<option value="All">ดูทั้งหมดทุกแผนก</option>';
+            depts.forEach(d => { select.innerHTML += `<option value="${escapeHtml(d)}">แผนก ${escapeHtml(d)}</option>`; });
         }
 
         function applyFilter() {
@@ -142,25 +153,32 @@
         }
 
         function handleGrade(id, val) {
-            const emp = employees.find(e => e.id === id); emp.adjGrade = val;
+            const emp = employees.find(e => String(e.id) === String(id));
+            if (!emp) return;
+            emp.adjGrade = val;
             if(emp.initGrade === val) emp.reason = '';
-            renderTable(); 
+            renderTable();
         }
 
-        function handleReason(id, val) { employees.find(e => e.id === id).reason = val; }
+        function handleReason(id, val) {
+            const emp = employees.find(e => String(e.id) === String(id));
+            if (emp) emp.reason = val;
+        }
 
         function updateQuotas() {
+            const denominator = employees.length || 0;
             document.getElementById('evalCountSpan').innerText = employees.length;
+            document.getElementById('totalScopeSpan').innerText = denominator;
             const cAPlus = employees.filter(e => e.adjGrade === 'A+').length;
             const cA = employees.filter(e => e.adjGrade === 'A').length;
 
-            const pctAPlus = globalTotalScope > 0 ? (cAPlus/globalTotalScope)*100 : 0;
-            const pctA = globalTotalScope > 0 ? (cA/globalTotalScope)*100 : 0;
+            const pctAPlus = denominator > 0 ? (cAPlus/denominator)*100 : 0;
+            const pctA = denominator > 0 ? (cA/denominator)*100 : 0;
 
             document.getElementById('countAPlus').innerText = cAPlus;
             document.getElementById('alertAPlus').innerHTML = `<span class="${pctAPlus > 10 ? 'text-red-600 font-bold' : 'text-green-600'}">คิดเป็น ${pctAPlus.toFixed(2)}%</span>`;
             document.getElementById('cardAPlus').className = `bg-white rounded-2xl shadow-sm p-8 border-l-4 ${pctAPlus > 10 ? 'border-red-500 bg-red-50' : 'border-green-500'}`;
-            
+
             document.getElementById('countA').innerText = cA;
             document.getElementById('alertA').innerHTML = `<span class="${pctA > 20 ? 'text-red-600 font-bold' : 'text-green-600'}">คิดเป็น ${pctA.toFixed(2)}%</span>`;
             document.getElementById('cardA').className = `bg-white rounded-2xl shadow-sm p-8 border-l-4 ${pctA > 20 ? 'border-red-500 bg-red-50' : 'border-green-500'}`;
@@ -168,50 +186,65 @@
             const gradesList = ['A+', 'A', 'B+', 'B', 'C', 'D'], gradeIds = ['APlus', 'A', 'BPlus', 'B', 'C', 'D'];
             gradesList.forEach((g, idx) => {
                 let count = employees.filter(e => e.adjGrade === g).length;
-                let pct = globalTotalScope === 0 ? 0 : ((count / globalTotalScope) * 100);
+                let pct = denominator === 0 ? 0 : ((count / denominator) * 100);
                 document.getElementById('dist' + gradeIds[idx]).innerText = count;
                 document.getElementById('pct' + gradeIds[idx]).innerText = pct.toFixed(2) + '%';
             });
         }
 
         function renderTable() {
-            const tbody = document.getElementById('directorTableBody'); tbody.innerHTML = '';
+            const tbody = document.getElementById('directorTableBody');
+            tbody.innerHTML = '';
             if(employees.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500">ไม่พบข้อมูลผู้ถูกประเมิน</td></tr>';
-                updateQuotas(); return;
+                updateQuotas();
+                return;
             }
             const grades = ['A+','A','B+','B','C','D'];
             employees.forEach(emp => {
                 const isAdj = emp.initGrade !== emp.adjGrade;
                 const tr = document.createElement('tr');
                 tr.className = `border-b ${isAdj ? 'grade-adjusted' : 'hover:bg-gray-50'} row-transition`;
-                
-                let sel = `<select onchange="handleGrade('${emp.id}', this.value)" class="w-full border-2 border-teal-100 rounded-xl p-2 bg-white font-black text-center text-lg">`;
+
+                let sel = `<select onchange="handleGrade('${escapeHtml(emp.id)}', this.value)" class="w-full border-2 border-teal-100 rounded-xl p-2 bg-white font-black text-center text-lg">`;
                 grades.forEach(g => sel += `<option ${emp.adjGrade===g?'selected':''}>${g}</option>`);
                 sel += `</select>`;
 
-                tr.innerHTML = `<td class="p-6"><p class="text-lg font-black">${emp.name}</p><p class="text-xs text-gray-400">${emp.id} • ${emp.dept}</p></td>
-                    <td class="p-6 text-center"><span class="bg-slate-100 px-4 py-2 rounded-xl font-black text-slate-700">${parseFloat(emp.score).toFixed(2)}</span></td>
-                    <td class="p-6 text-center font-black text-xl text-gray-500 bg-slate-50">${emp.initGrade}</td>
+                tr.innerHTML = `<td class="p-6"><p class="text-lg font-black">${escapeHtml(emp.name)}</p><p class="text-xs text-gray-400">${escapeHtml(emp.id)} • ${escapeHtml(emp.dept)}</p></td>
+                    <td class="p-6 text-center"><span class="bg-slate-100 px-4 py-2 rounded-xl font-black text-slate-700">${parseFloat(emp.score || 0).toFixed(2)}</span></td>
+                    <td class="p-6 text-center font-black text-xl text-gray-500 bg-slate-50">${escapeHtml(emp.initGrade)}</td>
                     <td class="p-6 bg-teal-50">${sel}</td>
-                    <td class="p-6"><input type="text" onchange="handleReason('${emp.id}', this.value)" value="${emp.reason}" placeholder="${isAdj?'โปรดระบุเหตุผลในการโยกเกรด...':'-'}" class="w-full border-2 p-3 rounded-xl text-sm ${isAdj?'border-red-200 bg-red-50':'bg-white'}" ${isAdj?'required':''}></td>`;
+                    <td class="p-6"><input type="text" onchange="handleReason('${escapeHtml(emp.id)}', this.value)" value="${escapeHtml(emp.reason)}" placeholder="${isAdj?'โปรดระบุเหตุผลในการโยกเกรด...':'-'}" class="w-full border-2 p-3 rounded-xl text-sm ${isAdj?'border-red-200 bg-red-50':'bg-white'}" ${isAdj?'required':''}></td>`;
                 tbody.appendChild(tr);
             });
             updateQuotas();
         }
 
         async function confirmAllGrades() {
-            const missing = employees.find(e => e.initGrade !== e.adjGrade && e.reason.trim() === '');
+            const missing = employees.find(e => e.initGrade !== e.adjGrade && String(e.reason || '').trim() === '');
             if(missing) return alert(`กรุณาระบุเหตุผลการแก้เกรดของ: ${missing.name}`);
 
-            const btn = document.getElementById('confirmBtn'); btn.innerText = "Saving Grid..."; btn.disabled = true;
-            const payload = employees.map(e => ({ id: e.id, finalGrade: e.adjGrade, reason: e.reason }));
-            const res = await apiCall("save_director_confirm", payload);
+            const btn = document.getElementById('confirmBtn');
+            const original = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin mr-3"></i> Saving Grid...';
+            btn.disabled = true;
+
+            const payload = employees.map(e => ({ id: e.id, finalGrade: e.adjGrade, reason: e.reason || '' }));
+            const res = await apiCall("save_director_confirm", { items: payload });
             if(res.status === "success") {
-                const toast = document.getElementById('toast'); toast.classList.remove('translate-y-20', 'opacity-0');
+                originalData = originalData.map(emp => {
+                    const updated = payload.find(p => String(p.id) === String(emp.id));
+                    return updated ? { ...emp, adjGrade: updated.finalGrade, reason: updated.reason, status: 'Confirmed' } : emp;
+                });
+                const toast = document.getElementById('toast');
+                toast.classList.remove('translate-y-20', 'opacity-0');
                 setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
-                btn.innerText = "Confirmed & Locked";
-            } else { alert("Error: " + res.message); btn.innerText = "Confirm All"; btn.disabled = false; }
+                btn.innerHTML = '<i class="fa-solid fa-lock mr-3"></i> Confirmed & Locked';
+            } else {
+                alert("Error: " + res.message);
+                btn.innerHTML = original;
+                btn.disabled = false;
+            }
         }
     </script>
 </body>

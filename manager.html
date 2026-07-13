@@ -114,6 +114,9 @@
                 </div>
                 <div class="flex space-x-5">
                     <button onclick="closeModal()" class="px-10 py-5 rounded-2xl font-black text-slate-400 hover:text-slate-600 text-lg transition-all">Cancel</button>
+                    <button onclick="saveDraft()" id="draftBtn" class="px-10 py-5 bg-white border-2 border-slate-200 text-slate-600 rounded-[1.5rem] hover:border-emerald-400 hover:text-emerald-600 shadow-sm font-black text-lg transition-all flex items-center">
+                        <i class="fa-solid fa-floppy-disk mr-3"></i> Save Draft
+                    </button>
                     <button onclick="submitEvaluation()" id="submitBtn" class="px-16 py-5 bg-slate-900 text-white rounded-[1.5rem] hover:bg-emerald-600 shadow-2xl shadow-slate-200 font-black text-xl transition-all flex items-center">
                         <i class="fa-solid fa-cloud-arrow-up mr-4"></i> Submit Results
                     </button>
@@ -127,13 +130,24 @@
         let currentUser = null, employees = [], currentEmpId = null, currentKPIs = [];
 
         window.onload = async () => {
-            currentUser = checkAuth("Manager"); 
-            if(currentUser) {
-                document.getElementById('userNameDisplay').innerText = currentUser.email;
-                const res = await apiCall("get_manager_data", { userId: currentUser.userId });
-                if(res.status === "success") { employees = res.data; renderDashboard(); }
+            currentUser = checkAuth("Manager");
+            if (!currentUser) return;
+
+            document.getElementById('userNameDisplay').innerText = currentUser.email;
+            const res = await apiCall("get_manager_data");
+            if(res.status === "success") {
+                employees = res.data || [];
+                renderDashboard();
+            } else {
+                alert("โหลดข้อมูลไม่สำเร็จ: " + res.message);
             }
         };
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+              .replaceAll('&', '&amp;').replaceAll('<', '&lt;')
+              .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+        }
 
         function renderDashboard() {
             document.getElementById('countTotal').innerText = employees.length;
@@ -142,22 +156,31 @@
 
             const tbody = document.getElementById('employeeTableBody');
             tbody.innerHTML = '';
-            
+
+            if (employees.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-20 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">ไม่พบลูกทีมในสิทธิ์ของบัญชีนี้</td></tr>';
+                return;
+            }
+
             employees.forEach(emp => {
-                const isEval = emp.status === 'Evaluated';
-                const badge = isEval 
+                const status = emp.status || 'Pending';
+                const isEval = status === 'Evaluated';
+                const isDraft = status === 'Draft';
+                const badge = isEval
                     ? `<span class="bg-emerald-100 text-emerald-700 px-5 py-2 rounded-2xl text-[10px] font-black uppercase border border-emerald-200/50">Completed</span>`
-                    : `<span class="bg-amber-50 text-amber-600 px-5 py-2 rounded-2xl text-[10px] font-black uppercase border border-amber-200/50 tracking-widest">Pending Review</span>`;
-                
+                    : isDraft
+                        ? `<span class="bg-blue-50 text-blue-600 px-5 py-2 rounded-2xl text-[10px] font-black uppercase border border-blue-200/50 tracking-widest">Draft</span>`
+                        : `<span class="bg-amber-50 text-amber-600 px-5 py-2 rounded-2xl text-[10px] font-black uppercase border border-amber-200/50 tracking-widest">Pending Review</span>`;
+
                 tbody.innerHTML += `
                     <tr class="hover:bg-slate-50 transition-all">
-                        <td class="px-10 py-8 font-mono text-slate-400 text-sm font-bold">#${emp.id}</td>
-                        <td class="px-6 py-8"><p class="text-xl font-black text-slate-800 leading-none mb-2">${emp.name}</p><p class="text-sm text-slate-400 font-bold tracking-tight">Identity: ${emp.nickname}</p></td>
-                        <td class="px-6 py-8 text-sm text-slate-500 font-bold leading-relaxed uppercase tracking-tighter">${emp.department}<br><span class="opacity-40 text-xs font-black tracking-widest">${emp.position}</span></td>
+                        <td class="px-10 py-8 font-mono text-slate-400 text-sm font-bold">#${escapeHtml(emp.id)}</td>
+                        <td class="px-6 py-8"><p class="text-xl font-black text-slate-800 leading-none mb-2">${escapeHtml(emp.name)}</p><p class="text-sm text-slate-400 font-bold tracking-tight">Identity: ${escapeHtml(emp.nickname)}</p></td>
+                        <td class="px-6 py-8 text-sm text-slate-500 font-bold leading-relaxed uppercase tracking-tighter">${escapeHtml(emp.department)}<br><span class="opacity-40 text-xs font-black tracking-widest">${escapeHtml(emp.position)}</span></td>
                         <td class="px-6 py-8 text-center">${badge}</td>
                         <td class="px-10 py-8 text-center">
-                            <button onclick="openModal('${emp.id}')" class="px-8 py-3 rounded-2xl text-sm font-black transition-all ${isEval?'text-slate-400 hover:bg-slate-100 border-2 border-slate-100':'bg-emerald-500 text-white hover:bg-emerald-600 shadow-xl shadow-emerald-100'}">
-                                ${isEval?'Update Details':'Review Score'}
+                            <button onclick="openModal('${escapeHtml(emp.id)}')" class="px-8 py-3 rounded-2xl text-sm font-black transition-all ${isEval?'text-slate-400 hover:bg-slate-100 border-2 border-slate-100':'bg-emerald-500 text-white hover:bg-emerald-600 shadow-xl shadow-emerald-100'}">
+                                ${isEval?'Update Details':(isDraft?'Continue Draft':'Review Score')}
                             </button>
                         </td>
                     </tr>`;
@@ -165,18 +188,21 @@
         }
 
         function openModal(empId) {
-            const emp = employees.find(e => e.id === empId);
+            const emp = employees.find(e => String(e.id) === String(empId));
+            if (!emp) return alert('ไม่พบข้อมูลพนักงาน');
             currentEmpId = empId;
             document.getElementById('modalEmpName').innerText = `Record: ${emp.id} — ${emp.name}`;
-            currentKPIs = JSON.parse(JSON.stringify(emp.kpis)); 
+            currentKPIs = JSON.parse(JSON.stringify(emp.kpis || []));
+
             if(emp.savedKPIs) {
                 currentKPIs.forEach(k => {
-                    const saved = emp.savedKPIs.find(s => s.id === k.id);
+                    const saved = emp.savedKPIs.find(s => s.id === k.id || s.name === k.name);
                     if(saved) {
-                        k.actual = saved.actual;
+                        k.actual = saved.actual || '';
                         k.details = saved.details || '';
                         k.evidenceName = saved.evidenceName || '';
-                        k.evidenceData = saved.evidenceData || '';
+                        k.evidenceUrl = saved.evidenceUrl || '';
+                        k.evidenceId = saved.evidenceId || '';
                     }
                 });
             }
@@ -192,22 +218,57 @@
             return match ? parseFloat(match[0]) : NaN;
         }
 
+        function fileToDataUrl(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => reject(reader.error || new Error('อ่านไฟล์ไม่สำเร็จ'));
+                reader.readAsDataURL(file);
+            });
+        }
+
         async function handleFileChange(index, file) {
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                currentKPIs[index].evidenceData = e.target.result; 
-                currentKPIs[index].evidenceName = file.name;
+            if (!currentEmpId) return alert('กรุณาเลือกพนักงานก่อนแนบไฟล์');
+
+            const maxMB = 8;
+            if (file.size > maxMB * 1024 * 1024) {
+                return alert(`ไฟล์ใหญ่เกิน ${maxMB} MB กรุณาลดขนาดไฟล์ก่อนแนบ`);
+            }
+
+            const originalName = file.name;
+            currentKPIs[index].evidenceName = `Uploading: ${originalName}`;
+            renderKPIs();
+
+            try {
+                const dataUrl = await fileToDataUrl(file);
+                const res = await apiCall('upload_evidence_to_drive', {
+                    empId: currentEmpId,
+                    kpiId: currentKPIs[index].id,
+                    fileName: originalName,
+                    mimeType: file.type || 'application/octet-stream',
+                    dataUrl
+                });
+
+                if (res.status !== 'success') throw new Error(res.message || 'Upload failed');
+
+                currentKPIs[index].evidenceName = res.fileName || originalName;
+                currentKPIs[index].evidenceUrl = res.fileUrl || '';
+                currentKPIs[index].evidenceId = res.fileId || '';
+                delete currentKPIs[index].evidenceData;
                 renderKPIs();
-            };
-            reader.readAsDataURL(file);
+            } catch (error) {
+                currentKPIs[index].evidenceName = '';
+                renderKPIs();
+                alert('อัปโหลด Evidence ไม่สำเร็จ: ' + error.message);
+            }
         }
 
         function handleActualChange(index, value) {
             currentKPIs[index].actual = value;
             const actualVal = parseFloat(value), kpi = currentKPIs[index], alertEl = document.getElementById(`alert_detect_${index}`);
             const s1 = extractNum(kpi.scale[1]), s5 = extractNum(kpi.scale[5]);
-            
+
             if(!isNaN(actualVal) && !isNaN(s1) && !isNaN(s5)) {
                 const isAsc = s5 > s1;
                 const isOut = isAsc ? (actualVal < s1 || actualVal > s5) : (actualVal > s1 || actualVal < s5);
@@ -219,9 +280,11 @@
         function calculateTotalScore() {
             let totalWeightedScore = 0, totalWeight = 0;
             currentKPIs.forEach((kpi, index) => {
+                const isCorpBlank = kpi.type === 'Corp' && !kpi.actual;
                 const weight = parseFloat(kpi.weight) || 0;
-                totalWeight += weight;
                 let kpiScore5 = 0, val = extractNum(kpi.actual);
+
+                if (!isCorpBlank) totalWeight += weight;
 
                 if (!isNaN(val)) {
                     const s = [extractNum(kpi.scale[1]), extractNum(kpi.scale[2]), extractNum(kpi.scale[3]), extractNum(kpi.scale[4]), extractNum(kpi.scale[5])];
@@ -238,7 +301,8 @@
                         }
                     }
                 }
-                const weighted = (kpiScore5 / 5) * weight;
+
+                const weighted = isCorpBlank ? 0 : (kpiScore5 / 5) * weight;
                 totalWeightedScore += weighted;
                 const weightEl = document.getElementById(`weight_display_${index}`);
                 if(weightEl) weightEl.value = `${weighted.toFixed(2)}`;
@@ -253,9 +317,9 @@
                 if(e.id !== currentEmpId && e.savedKPIs) {
                     const match = e.kpis.find(k => k.name === kpiName);
                     if(match) {
-                        const saved = e.savedKPIs.find(s => s.id === match.id);
+                        const saved = e.savedKPIs.find(s => s.id === match.id || s.name === match.name);
                         if(saved && saved.actual) {
-                            options += `<option value="${saved.actual}">คุณ${e.nickname} (${saved.actual})</option>`;
+                            options += `<option value="${escapeHtml(saved.actual)}">คุณ${escapeHtml(e.nickname)} (${escapeHtml(saved.actual)})</option>`;
                             count++;
                         }
                     }
@@ -271,20 +335,29 @@
             }
         }
 
+        function clearEvidence(index) {
+            currentKPIs[index].evidenceName = '';
+            currentKPIs[index].evidenceUrl = '';
+            currentKPIs[index].evidenceId = '';
+            delete currentKPIs[index].evidenceData;
+            renderKPIs();
+        }
+
         function renderKPIs() {
             const container = document.getElementById('kpiContainer');
             container.innerHTML = '';
             currentKPIs.forEach((kpi, index) => {
                 const isCorp = kpi.type === 'Corp';
                 const copyOptions = getCopyOptions(kpi.name);
-                
+                const evidenceLink = kpi.evidenceUrl ? `<a href="${escapeHtml(kpi.evidenceUrl)}" target="_blank" class="underline decoration-white/50 hover:text-emerald-100">เปิดไฟล์</a>` : '';
+
                 container.innerHTML += `
                     <div class="kpi-card rounded-[2.5rem] p-10 mb-14 relative overflow-hidden">
                         <div class="flex flex-col lg:flex-row lg:items-start justify-between mb-8 gap-6 border-b border-slate-50 pb-8">
                             <div class="flex-grow">
                                 <div class="flex items-center mb-5 flex-wrap gap-4">
-                                    <span class="bg-slate-900 text-white text-[10px] px-3 py-1.5 rounded-lg mr-4 font-black uppercase tracking-widest shadow-lg shadow-slate-200">${kpi.type}</span>
-                                    <h3 class="font-black text-slate-800 text-3xl tracking-tighter uppercase leading-none">KPI: ${kpi.name}</h3>
+                                    <span class="bg-slate-900 text-white text-[10px] px-3 py-1.5 rounded-lg mr-4 font-black uppercase tracking-widest shadow-lg shadow-slate-200">${escapeHtml(kpi.type)}</span>
+                                    <h3 class="font-black text-slate-800 text-3xl tracking-tighter uppercase leading-none">KPI: ${escapeHtml(kpi.name)}</h3>
                                 </div>
                                 ${copyOptions && !isCorp ? `
                                     <div class="mb-4">
@@ -295,21 +368,21 @@
                                 ` : ''}
                                 <div class="p-6 bg-emerald-50/50 rounded-[1.5rem] border border-emerald-100 text-base leading-relaxed text-emerald-900 font-bold italic shadow-inner">
                                     <span class="text-[10px] font-black text-emerald-400 uppercase tracking-widest block mb-2 not-italic">Description & Scoring Rule</span>
-                                    ${kpi.remark || 'No additional measurement detail provided'}
+                                    ${escapeHtml(kpi.remark || 'No additional measurement detail provided')}
                                 </div>
                             </div>
                             <div class="lg:text-right min-w-[150px] bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Weight</p> 
-                                <p class="text-5xl font-black text-slate-300 leading-none tracking-tighter tabular-nums">${kpi.weight}<span class="text-xl">%</span></p>
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Weight</p>
+                                <p class="text-5xl font-black text-slate-300 leading-none tracking-tighter tabular-nums">${escapeHtml(kpi.weight)}<span class="text-xl">%</span></p>
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-12 text-center">
-                            <div class="bg-white border-2 border-slate-50 rounded-2xl p-5"><p class="text-[10px] font-black text-slate-300 uppercase mb-3 tracking-widest">เป้าขั้นต่ำ (1)</p><p class="text-sm font-black text-red-400 tracking-tight">${kpi.scale[1]}</p></div>
-                            <div class="bg-white border-2 border-slate-50 rounded-2xl p-5"><p class="text-[10px] font-black text-slate-300 uppercase mb-3 tracking-widest">ต่ำกว่ามาตรฐาน (2)</p><p class="text-sm font-black text-amber-500 tracking-tight">${kpi.scale[2]}</p></div>
-                            <div class="bg-emerald-50/80 border-2 border-emerald-500/30 rounded-2xl p-5 ring-8 ring-emerald-500/5 shadow-sm"><p class="text-[10px] font-black text-emerald-600 uppercase mb-3 tracking-widest">เป้ามาตรฐาน (3)</p><p class="text-lg font-black text-emerald-700 tracking-tight">${kpi.scale[3]}</p></div>
-                            <div class="bg-white border-2 border-slate-50 rounded-2xl p-5"><p class="text-[10px] font-black text-slate-300 uppercase mb-3 tracking-widest">สูงกว่ามาตรฐาน (4)</p><p class="text-sm font-black text-teal-500 tracking-tight">${kpi.scale[4]}</p></div>
-                            <div class="bg-white border-2 border-slate-50 rounded-2xl p-5"><p class="text-[10px] font-black text-slate-300 uppercase mb-3 tracking-widest">เป้าท้าทาย (5)</p><p class="text-sm font-black text-emerald-500 tracking-tight">${kpi.scale[5]}</p></div>
+                            <div class="bg-white border-2 border-slate-50 rounded-2xl p-5"><p class="text-[10px] font-black text-slate-300 uppercase mb-3 tracking-widest">เป้าขั้นต่ำ (1)</p><p class="text-sm font-black text-red-400 tracking-tight">${escapeHtml(kpi.scale[1])}</p></div>
+                            <div class="bg-white border-2 border-slate-50 rounded-2xl p-5"><p class="text-[10px] font-black text-slate-300 uppercase mb-3 tracking-widest">ต่ำกว่ามาตรฐาน (2)</p><p class="text-sm font-black text-amber-500 tracking-tight">${escapeHtml(kpi.scale[2])}</p></div>
+                            <div class="bg-emerald-50/80 border-2 border-emerald-500/30 rounded-2xl p-5 ring-8 ring-emerald-500/5 shadow-sm"><p class="text-[10px] font-black text-emerald-600 uppercase mb-3 tracking-widest">เป้ามาตรฐาน (3)</p><p class="text-lg font-black text-emerald-700 tracking-tight">${escapeHtml(kpi.scale[3])}</p></div>
+                            <div class="bg-white border-2 border-slate-50 rounded-2xl p-5"><p class="text-[10px] font-black text-slate-300 uppercase mb-3 tracking-widest">สูงกว่ามาตรฐาน (4)</p><p class="text-sm font-black text-teal-500 tracking-tight">${escapeHtml(kpi.scale[4])}</p></div>
+                            <div class="bg-white border-2 border-slate-50 rounded-2xl p-5"><p class="text-[10px] font-black text-slate-300 uppercase mb-3 tracking-widest">เป้าท้าทาย (5)</p><p class="text-sm font-black text-emerald-500 tracking-tight">${escapeHtml(kpi.scale[5])}</p></div>
                         </div>
 
                         <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
@@ -317,11 +390,11 @@
                                 <div>
                                     <label class="block text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Actual Performance</label>
                                     <div class="relative group">
-                                        <input type="number" step="any" value="${kpi.actual}" oninput="handleActualChange(${index}, this.value)" class="w-full p-8 border-2 border-slate-100 rounded-[2rem] font-black text-emerald-600 bg-slate-50/50 focus:bg-white focus:border-emerald-500 transition-all text-5xl placeholder-slate-200 shadow-inner group-hover:border-slate-200" placeholder="0.00" ${isCorp?'disabled':''}>
+                                        <input type="number" step="any" value="${escapeHtml(kpi.actual)}" oninput="handleActualChange(${index}, this.value)" class="w-full p-8 border-2 border-slate-100 rounded-[2rem] font-black text-emerald-600 bg-slate-50/50 focus:bg-white focus:border-emerald-500 transition-all text-5xl placeholder-slate-200 shadow-inner group-hover:border-slate-200" placeholder="0.00" ${isCorp?'disabled':''}>
                                         <div id="alert_detect_${index}" class="absolute -bottom-8 left-0 h-8"></div>
                                     </div>
                                 </div>
-                                
+
                                 <div class="bg-slate-50 border-2 border-slate-100 border-dashed rounded-[2rem] p-8 transition-all hover:border-emerald-200 hover:bg-white">
                                     <label class="block text-xs font-black text-slate-400 mb-5 uppercase tracking-[0.2em]">Evidence Attachment</label>
                                     <div class="flex flex-col gap-5">
@@ -332,17 +405,17 @@
                                         ${kpi.evidenceName ? `
                                             <div class="flex items-center gap-4 bg-emerald-600 text-white p-5 rounded-[1.5rem] shadow-xl shadow-emerald-100">
                                                 <i class="fa-solid fa-file-circle-check text-2xl"></i>
-                                                <span class="text-xs font-black truncate flex-grow">${kpi.evidenceName}</span>
-                                                <button onclick="currentKPIs[${index}].evidenceName=''; currentKPIs[${index}].evidenceData=''; renderKPIs();" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"><i class="fa-solid fa-trash-can"></i></button>
+                                                <span class="text-xs font-black truncate flex-grow">${escapeHtml(kpi.evidenceName)} ${evidenceLink}</span>
+                                                <button onclick="clearEvidence(${index})" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"><i class="fa-solid fa-trash-can"></i></button>
                                             </div>
                                         ` : '<p class="text-xs text-slate-300 font-bold text-center uppercase tracking-widest opacity-50">JPG, PDF, XLS, DOC are accepted</p>'}
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="lg:col-span-5 flex flex-col">
                                 <label class="block text-xs font-black text-slate-400 mb-4 uppercase tracking-[0.2em]">Achievement Notes (Details)</label>
-                                <textarea onchange="currentKPIs[${index}].details = this.value" class="flex-grow w-full p-10 border-2 border-slate-100 rounded-[2.5rem] text-lg bg-slate-50/50 focus:bg-white focus:border-emerald-500 outline-none font-bold text-slate-700 transition-all shadow-inner leading-relaxed" placeholder="Briefly describe the key achievements...">${kpi.details || ''}</textarea>
+                                <textarea onchange="currentKPIs[${index}].details = this.value" class="flex-grow w-full p-10 border-2 border-slate-100 rounded-[2.5rem] text-lg bg-slate-50/50 focus:bg-white focus:border-emerald-500 outline-none font-bold text-slate-700 transition-all shadow-inner leading-relaxed" placeholder="Briefly describe the key achievements...">${escapeHtml(kpi.details || '')}</textarea>
                             </div>
 
                             <div class="lg:col-span-3 flex flex-col justify-center">
@@ -352,7 +425,7 @@
                                         <input type="text" id="weight_display_${index}" disabled value="0.00" class="w-full bg-transparent font-black text-white text-7xl text-center tabular-nums leading-none mb-3 tracking-tighter">
                                         <div class="h-1.5 w-16 bg-emerald-500 mx-auto rounded-full shadow-lg shadow-emerald-500/50"></div>
                                     </div>
-                                    <p class="mt-8 text-[11px] font-black text-slate-500 uppercase tracking-widest">Weight Factor: ${kpi.weight}%</p>
+                                    <p class="mt-8 text-[11px] font-black text-slate-500 uppercase tracking-widest">Weight Factor: ${escapeHtml(kpi.weight)}%</p>
                                 </div>
                             </div>
                         </div>
@@ -361,27 +434,53 @@
             calculateTotalScore();
         }
 
+        function sanitizeKpisForSave(kpis) {
+            return kpis.map(k => ({
+                id: k.id,
+                type: k.type,
+                name: k.name,
+                actual: k.actual || '',
+                details: k.details || '',
+                evidenceName: k.evidenceName || '',
+                evidenceUrl: k.evidenceUrl || '',
+                evidenceId: k.evidenceId || ''
+            }));
+        }
+
+        async function saveDraft() {
+            await saveEvaluation('save_manager_draft', false);
+        }
+
         async function submitEvaluation() {
             const isIncomplete = currentKPIs.some(k => k.type !== 'Corp' && !k.actual);
             if(isIncomplete) return alert("โปรดกรอกผลงานจริงให้ครบทุกข้อก่อนการยืนยันข้อมูล");
-
-            const score = document.getElementById('autoTotalScore').innerText;
-            const btn = document.getElementById('submitBtn');
-            const originalHTML = btn.innerHTML;
-            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin mr-4"></i> Synchronizing...`;
-            btn.disabled = true;
-            
-            const payload = { empId: currentEmpId, kpis: currentKPIs, totalScore: score, initGrade: '-' };
-            const res = await apiCall("save_manager_eval", payload);
-            
-            if(res.status === "success") {
-                const emp = employees.find(e => e.id === currentEmpId);
-                emp.status = 'Evaluated'; emp.savedKPIs = currentKPIs; emp.savedScore = score;
-                closeModal(); renderDashboard(); alert("ระบบทำการบันทึกข้อมูลเรียบร้อยแล้ว");
-            } else { alert("เกิดข้อผิดพลาด: " + res.message); }
-            btn.innerHTML = originalHTML; btn.disabled = false;
+            await saveEvaluation('save_manager_eval', true);
         }
-        function logout() { localStorage.removeItem("hr_user_session"); window.location.href = "index.html"; }
+
+        async function saveEvaluation(action, closeAfterSave) {
+            const btn = document.getElementById(action === 'save_manager_eval' ? 'submitBtn' : 'draftBtn');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin mr-4"></i> Saving...`;
+            btn.disabled = true;
+
+            const payload = { empId: currentEmpId, kpis: sanitizeKpisForSave(currentKPIs) };
+            const res = await apiCall(action, payload);
+
+            if(res.status === "success") {
+                const emp = employees.find(e => String(e.id) === String(currentEmpId));
+                emp.status = res.statusLabel || (action === 'save_manager_eval' ? 'Evaluated' : 'Draft');
+                emp.savedKPIs = res.kpis || sanitizeKpisForSave(currentKPIs);
+                emp.savedScore = res.totalScore || document.getElementById('autoTotalScore').innerText;
+                emp.savedInitGrade = res.initGrade || emp.savedInitGrade;
+                if(closeAfterSave) closeModal();
+                renderDashboard();
+                alert(action === 'save_manager_eval' ? "ระบบบันทึกผลประเมินเรียบร้อยแล้ว" : "บันทึก Draft เรียบร้อยแล้ว");
+            } else {
+                alert("เกิดข้อผิดพลาด: " + res.message);
+            }
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+        }
     </script>
 </body>
 </html>
