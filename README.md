@@ -2,6 +2,13 @@
 
 ระบบประเมินผลงานพนักงานและอนุมัติเกรดประจำปี สำหรับทำ Prototype บน Git/Vercel โดยใช้ Google Apps Script + Google Sheets เป็น backend
 
+## ไฟล์ Google Sheets ที่ตั้งไว้ให้แล้ว
+
+- Evaluate_Database: `1eqGARF_24jDi4Z326njcLQ03DN0xCmpBlvvBsAvxJ-k`
+- KPI_MASTER 2026: `1X_LvGf830BdElP-CW6hS_EkqriqBvEtN5Qn42lJYgKg`
+
+ค่าทั้งสองนี้ถูกใส่ไว้ในฟังก์ชัน `setupPrototypeConfig()` แล้ว ไม่ได้ถูกฝังใน frontend.
+
 ## สิ่งที่ปรับจากไฟล์เดิม
 
 - เพิ่ม `index.html` สำหรับ Login ด้วย Email + PIN
@@ -39,18 +46,21 @@
 1. เปิด Google Sheets ฐานข้อมูลประเมิน
 2. ไปที่ Extensions > Apps Script
 3. วางโค้ดจาก `backend/Code.gs`
-4. ไปที่ Project Settings > Script Properties แล้วเพิ่มค่าเหล่านี้
+4. เลือกฟังก์ชัน `setupPrototypeConfig()` แล้วกด Run 1 ครั้ง เพื่อใส่ Spreadsheet ID และสร้าง Evidence Folder อัตโนมัติ
+5. ถ้าต้องการตั้งเอง ให้ไปที่ Project Settings > Script Properties แล้วเพิ่มค่าเหล่านี้
 
 ```text
-DB_EVAL_ID = Spreadsheet ID ของไฟล์ฐานข้อมูลประเมิน
-DB_KPI_ID = Spreadsheet ID ของไฟล์ KPI_MASTER
+DB_EVAL_ID = 1eqGARF_24jDi4Z326njcLQ03DN0xCmpBlvvBsAvxJ-k
+DB_KPI_ID = 1X_LvGf830BdElP-CW6hS_EkqriqBvEtN5Qn42lJYgKg
 EVIDENCE_FOLDER_ID = Folder ID ใน Google Drive สำหรับเก็บหลักฐาน
 ```
 
-5. Deploy เป็น Web App
+หรือวิธีที่ง่ายกว่า: หลังจากวาง `backend/Code.gs` แล้ว ให้เลือกฟังก์ชัน `setupPrototypeConfig()` และกด Run 1 ครั้ง ระบบจะตั้งค่า `DB_EVAL_ID`, `DB_KPI_ID` ให้ตามไฟล์ของคุณ และสร้างโฟลเดอร์ `PMS_Evidence_2026_Prototype` ใน Google Drive ให้อัตโนมัติถ้ายังไม่มี `EVIDENCE_FOLDER_ID`.
+
+6. Deploy เป็น Web App
    - Execute as: Me
    - Who has access: Anyone หรือ Anyone within organization ตามสิทธิ์ที่ต้องการทดสอบ
-6. Copy Web App URL ไปใช้ใน Vercel Environment Variable ชื่อ `GAS_WEBAPP_URL`
+7. Copy Web App URL ไปใช้ใน Vercel Environment Variable ชื่อ `GAS_WEBAPP_URL`
 
 ## Sheet ที่ต้องมีใน DB_EVAL_ID
 

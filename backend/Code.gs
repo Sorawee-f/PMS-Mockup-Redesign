@@ -16,6 +16,32 @@ const EVAL_REQUIRED_COLUMNS = [
 const AUDIT_HEADERS = ['Timestamp', 'Level', 'Action', 'UserEmail', 'Role', 'TargetID', 'Before', 'After', 'Note'];
 const SYSTEM_LOG_HEADERS = ['Timestamp', 'Level', 'Function', 'Message', 'Payload'];
 
+
+// =================================================================
+// ONE-TIME SETUP FOR THIS PROTOTYPE
+// Run this function once in Apps Script editor after pasting Code.gs.
+// It stores the two Spreadsheet IDs in Script Properties and creates
+// an Evidence folder automatically if EVIDENCE_FOLDER_ID is not set.
+// =================================================================
+function setupPrototypeConfig() {
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('DB_EVAL_ID', '1eqGARF_24jDi4Z326njcLQ03DN0xCmpBlvvBsAvxJ-k');
+  props.setProperty('DB_KPI_ID', '1X_LvGf830BdElP-CW6hS_EkqriqBvEtN5Qn42lJYgKg');
+
+  let evidenceFolderId = props.getProperty('EVIDENCE_FOLDER_ID');
+  if (!evidenceFolderId) {
+    const folder = DriveApp.createFolder('PMS_Evidence_2026_Prototype');
+    evidenceFolderId = folder.getId();
+    props.setProperty('EVIDENCE_FOLDER_ID', evidenceFolderId);
+    Logger.log('Created evidence folder: ' + folder.getUrl());
+  }
+
+  Logger.log('Setup completed.');
+  Logger.log('DB_EVAL_ID: ' + props.getProperty('DB_EVAL_ID'));
+  Logger.log('DB_KPI_ID: ' + props.getProperty('DB_KPI_ID'));
+  Logger.log('EVIDENCE_FOLDER_ID: ' + props.getProperty('EVIDENCE_FOLDER_ID'));
+}
+
 // ปรับเกณฑ์นี้ได้ตาม Policy จริงขององค์กร
 const GRADE_RULES = [
   { min: 95, grade: 'A+' },
